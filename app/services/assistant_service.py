@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from fastapi import HTTPException
 
@@ -21,16 +20,7 @@ async def generate_response_text(user_input: str) -> str:
         client = settings.CLIENT_NAME
         response_stream = None
 
-        if client == "openai":
-            openai_client = client_manager.get_openai_client()
-            response_stream = openai_client.chat.completions.create(
-                model=settings.MODEL_NAME_CONVERSATIONAL_OPENAI,
-                messages=messages,
-                stream=True,
-                max_tokens=100,
-                temperature=0.2,
-            )
-        elif client == "groq":
+        if client == "groq":
             groq_client = client_manager.get_groq_client()
             response_stream = groq_client.chat.completions.create(
                 model=settings.MODEL_NAME_CONVERSATIONAL_GROQ,

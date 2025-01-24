@@ -3,9 +3,6 @@
 from fastapi import FastAPI
 from app.routers import assistant
 
-from app.database import engine
-from app.models import Base
-
 from app.config import settings
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +12,9 @@ import logging
 logging.basicConfig(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
-    title="MVPLY API",
-    description="MVPLY API for audio transcription, comparison, and assistant services.",
+    title="Bureasy API",
+    description="Bureasy API",
     version="1.0.0",
 )
 
@@ -37,7 +32,7 @@ app.include_router(assistant.router)
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the MVPLY API!"}
+    return {"message": "Welcome to the Bureasy API!"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host=settings.FASTAPI_HOST, port=settings.FASTAPI_PORT, debug=settings.FASTAPI_DEBUG)
