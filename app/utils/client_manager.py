@@ -1,11 +1,13 @@
+import logging
 from groq import Groq
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 class ClientManager:
     """Manages shared instances of external clients."""
     def __init__(self):
         self.groq_client = None
-        self.openai_client = None
 
     def setup_clients(self):
         """Initialize clients if not already initialized."""

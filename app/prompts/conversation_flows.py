@@ -1,5 +1,3 @@
-# prompts/conversation_flows.py
-
 CONVERSATION_FLOWS = {
     "visa_extension": [
         "What is your current visa or residence permit type?",
@@ -15,4 +13,5 @@ CONVERSATION_FLOWS = {
         "Are you currently employed or studying? Please specify employer/university.",
         "Which local Foreigners Office (KVR / Ausländerbehörde) do you usually go to?",
     ],
+    # Add more flows as needed
 }

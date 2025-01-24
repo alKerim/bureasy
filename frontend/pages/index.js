@@ -1,27 +1,28 @@
 // pages/index.js
+
 import Link from "next/link";
+import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid"; // Corrected import path
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4 flex flex-col items-center justify-center">
-      <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg p-8 text-gray-800">
-        <h1 className="text-4xl font-bold mb-4 text-center text-blue-600">Welcome to BUREASY</h1>
-        <p className="text-lg mb-8 text-center">
-          Your one-stop solution for navigating bureaucratic tasks. Whether it’s renewing a visa, getting a driver’s license, or any other government service—we simplify every step.
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 flex flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 text-gray-800 dark:text-gray-100 transform animate-slideInLeft">
+        <div className="flex flex-col items-center">
+          <ChatBubbleLeftRightIcon className="h-16 w-16 text-primary mb-4 animate-bounce" />
+          <h1 className="text-4xl font-extrabold mb-4 text-center text-primary dark:text-primary-dark animate-fadeIn">
+            BUREASY
+          </h1>
+          <p className="text-center text-gray-700 dark:text-gray-300 mb-8 animate-fadeIn">
+            Simplifying your bureaucratic tasks with ease.
+          </p>
 
-        <div className="flex justify-center">
-        <Link
+          <Link
             href="/assistant-response"
-            className="inline-block px-6 py-3 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition"
+            className="inline-flex items-center px-6 py-3 bg-primary text-white font-semibold rounded-md shadow hover:bg-primary-dark transition transform hover:scale-105"
           >
+            <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 animate-pulseSlow" />
             Get Started
-        </Link>
-
-        </div>
-
-        <div className="mt-8 text-center text-gray-600">
-          <p>Have questions? Just click “Get Started” and ask away!</p>
+          </Link>
         </div>
       </div>
     </div>
