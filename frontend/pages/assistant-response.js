@@ -41,15 +41,19 @@ export default function AssistantResponsePage() {
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-4">
       <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-8 text-gray-800">
-        <h1 className="text-3xl font-bold mb-6 text-center">Assistant Response Generator</h1>
-        
-        <label className="block mb-2 font-semibold">Enter your input:</label>
+        <h1 className="text-3xl font-bold mb-6 text-center text-blue-600">Ask BUREASY</h1>
+        <p className="mb-8 text-center text-gray-600">
+          Need help with a visa, driver’s license, or other administrative tasks? 
+          Ask away and BUREASY will guide you step by step.
+        </p>
+
+        <label className="block mb-2 font-semibold">Enter your question/request:</label>
         <textarea
           value={userInput}
           onChange={(e) => setUserInput(e.target.value)}
           rows={4}
           className="w-full p-3 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Type your message here..."
+          placeholder="e.g., 'How do I renew my student visa in Munich?'"
         />
 
         <button
@@ -57,7 +61,7 @@ export default function AssistantResponsePage() {
           disabled={loading || !userInput.trim()}
           className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition disabled:opacity-50"
         >
-          {loading ? "Generating..." : "Generate Response"}
+          {loading ? "Generating..." : "Get Guidance"}
         </button>
 
         {error && (
@@ -68,7 +72,7 @@ export default function AssistantResponsePage() {
 
         {assistantResponse && (
           <div className="mt-6 bg-gray-50 p-4 rounded-md border border-gray-200">
-            <h2 className="text-xl font-semibold mb-2">Assistant Response:</h2>
+            <h2 className="text-xl font-semibold mb-2">BUREASY&apos;s Response:</h2>
             <p>{assistantResponse}</p>
           </div>
         )}

@@ -1,11 +1,7 @@
 # main.py
 
 from fastapi import FastAPI
-from app.routers import audio_transcription
 from app.routers import assistant
-from app.routers import audio_compare
-from app.routers import transcription_db
-from app.routers import text_to_image
 
 from app.database import engine
 from app.models import Base
@@ -37,11 +33,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(audio_transcription.router)
 app.include_router(assistant.router)
-app.include_router(audio_compare.router)
-app.include_router(transcription_db.router)
-app.include_router(text_to_image.router)
 
 @app.get("/")
 def read_root():
