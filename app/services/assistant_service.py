@@ -1,180 +1,242 @@
+# app/services/assistant_service.py
+
 import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation, Message
 from app.prompts.conversation_flows import CONVERSATION_FLOWS
-from app.prompts.system_prompt_templates import prompt
-
-# LLM integration
+from app.prompts.system_prompt_templates import (
+    detect_flow_prompt,
+    next_question_prompt,
+    user_request_generation_prompt,
+    classification_instructions_template,
+)
 from app.utils.client_manager import client_manager
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-def start_new_conversation(db: Session, flow_type: str):
+def process_incoming_message(db: Session, user_input: str, conversation_id: int | None):
     """
-    Create a new Conversation row with the specified flow type,
-    store no messages yet, set state_index to 0 (start of flow).
-    Returns (conversation_id, first_question).
+    1) If conversation_id is None or invalid => detect flow from user_input via LLM.
+    2) If recognized => create/resume conversation.
+    3) Store user msg => ask next question or produce final summary.
     """
-    if flow_type not in CONVERSATION_FLOWS:
-        raise HTTPException(status_code=400, detail=f"Unknown flow type: {flow_type}")
+    conversation = None
+    if conversation_id:
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
 
-    # Create conversation
-    conversation = Conversation(flow_type=flow_type, state_index=0)
-    db.add(conversation)
-    db.commit()
-    db.refresh(conversation)
-
-    # Return the first question from the flow
-    first_question = CONVERSATION_FLOWS[flow_type][0]
-    return conversation.id, first_question
-
-def process_user_message(db: Session, conversation_id: int, user_input: str):
-    """
-    1) Store the user's message.
-    2) Determine the next question or if flow is finished.
-    3) Store the assistant's response (the next question or final summary).
-    4) Return (assistant_response, finished).
-    """
-    # Retrieve conversation
-    conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found.")
+        detected_flow = detect_flow_from_text(user_input)
+        if not detected_flow:
+            # If LLM can't match a known flow
+            response_text = (
+                "Thanks for your request. Unfortunately, we do not yet support this process. "
+                "We may add it in a future release."
+            )
+            return None, response_text, True
+        else:
+            # Create new conversation
+            conversation = Conversation(flow_type=detected_flow, state_index=0)
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
 
     flow_type = conversation.flow_type
-    if flow_type not in CONVERSATION_FLOWS:
-        raise HTTPException(status_code=400, detail="Invalid flow type in conversation.")
+    flow = CONVERSATION_FLOWS.get(flow_type)
+    if not flow:
+        raise HTTPException(status_code=400, detail="Flow type not recognized.")
 
-    flow = CONVERSATION_FLOWS[flow_type]
+    # Store the user's message
+    user_msg = Message(conversation_id=conversation.id, role="user", content=user_input)
+    db.add(user_msg)
+    db.commit()
 
-    # 1) Store user message
-    user_message = Message(
-        conversation_id=conversation_id,
-        role="user",
-        content=user_input
-    )
-    db.add(user_message)
-
-    # Move the conversation state forward
     current_index = conversation.state_index
     next_index = current_index + 1
 
-    # Check if we've reached the end of the flow
     if next_index < len(flow):
-        # There is a next question
-        next_question = flow[next_index]
+        # We still have questions => reword next question
+        raw_question = flow[next_index]
+        next_q = ai_generate_question(conversation, raw_question, db)
 
-        # Store assistant's next question
-        assistant_message = Message(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=next_question
+        assistant_msg = Message(
+            conversation_id=conversation.id, 
+            role="assistant", 
+            content=next_q
         )
-        db.add(assistant_message)
+        db.add(assistant_msg)
 
-        # Update conversation state
         conversation.state_index = next_index
         db.commit()
 
-        return next_question, False
+        return conversation.id, next_q, False
     else:
-        # Flow is finished - provide a final LLM-based summary
-        final_summary = generate_conversation_summary(db, conversation_id)
-
-        # Store the summary as an assistant message
-        assistant_message = Message(
-            conversation_id=conversation_id,
-            role="assistant",
-            content=final_summary
+        # All questions answered => generate user request
+        user_request = generate_user_request(db, conversation.id)
+        
+        assistant_msg = Message(
+            conversation_id=conversation.id, 
+            role="assistant", 
+            content=user_request
         )
-        db.add(assistant_message)
-
-        # We do NOT increment state_index because we've finished
+        
+        db.add(assistant_msg)
         db.commit()
-
-        return final_summary, True
-
-def generate_conversation_summary(db: Session, conversation_id: int) -> str:
+        
+        return conversation.id, user_request, True
+    
+def detect_flow_from_text(user_input: str) -> str | None:
     """
-    Use LLM to create a final summary of all user messages from this conversation.
+    LLM-based flow detection using classification_instructions_template.
+    Dynamically list known flows from CONVERSATION_FLOWS. If not matched => None.
     """
-    # Fetch only user messages
-    user_messages = db.query(Message).filter(
-        Message.conversation_id == conversation_id,
-        Message.role == "user"
-    ).all()
+    known_flows = list(CONVERSATION_FLOWS.keys())  # e.g. ["visa_extension", ...]
 
-    if not user_messages:
-        return "No user messages to summarize."
+    flow_list_text = "\n".join(f"- {f}" for f in known_flows)
 
-    # Prepare the conversation text for the LLM
-    # You could create a prompt that includes all user messages
-    user_input_text = "\n".join([f"User said: {msg.content}" for msg in user_messages])
-
-    # Example: a system prompt instructing the LLM to summarize all user inputs
-    system_prompt = (
-        "You are a helpful assistant that creates a concise summary "
-        "of the information the user provided during the conversation."
-        "Focus on key details relevant to the user's visa extension request.\n\n"
+    classification_text = classification_instructions_template.format(
+        detect_flow_prompt=detect_flow_prompt,
+        flow_list_text=flow_list_text,
+        user_input=user_input
     )
 
-    full_prompt = system_prompt + user_input_text
-
-    # Call the LLM (Groq example)
     try:
         client_manager.setup_clients()
         groq_client = client_manager.get_groq_client()
 
         response_stream = groq_client.chat.completions.create(
             model=settings.MODEL_NAME_CONVERSATIONAL_GROQ,
-            messages=[
-                {"role": "system", "content": full_prompt}
-            ],
+            messages=[{"role": "system", "content": classification_text}],
             stream=True,
-            max_tokens=300,
-            temperature=0.2,
+            max_tokens=30,
+            temperature=0.0,
         )
 
-        summary_text = ""
+        llm_response = ""
         for chunk in response_stream:
             if hasattr(chunk.choices[0].delta, "content"):
                 token = chunk.choices[0].delta.content
                 if token:
-                    summary_text += token
+                    llm_response += token
 
-        return summary_text.strip()
+        llm_response = llm_response.strip().lower()
+        logger.info(f"[Flow Detection] LLM responded: {llm_response}")
+
+        # If LLM response is one of our known flows => use it
+        if llm_response in known_flows:
+            return llm_response
+
+        return None
+
     except Exception as e:
-        logger.error(f"Error generating summary: {e}")
-        # Fallback: basic bullet-point summary if LLM fails
-        fallback_summary = "\n".join(
-            [f"{i+1}. {msg.content}" for i, msg in enumerate(user_messages)]
-        )
-        return f"LLM summary failed. Here is a fallback summary:\n{fallback_summary}"
+        logger.error(f"Error detecting flow: {e}")
+        # fallback if LLM fails
+        fallback_input = user_input.lower()
+        if "visa" in fallback_input or "extend" in fallback_input:
+            return "visa_extension"
+        return None
 
-def get_conversation_summary(db: Session, conversation_id: int) -> str:
+def ai_generate_question(conversation: Conversation, new_question: str, db: Session) -> str:
     """
-    Return the final assistant message if the flow is finished,
-    or dynamically generate if needed.
+    Reword new_question in a friendlier style, using recent conversation context.
+    """
+    recent_msgs = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(Message.id.desc()).limit(5).all()
+
+    user_context = "\n".join(
+        f"{m.role.capitalize()}: {m.content}" for m in reversed(recent_msgs)
+    )
+
+    system_prompt = (
+        f"{detect_flow_prompt}\n\n"
+        f"{next_question_prompt}\n\n"
+        "Conversation so far:\n"
+        f"{user_context}\n\n"
+        "Raw next question:\n"
+        f"{new_question}\n"
+        "Please reply ONLY with the reworded question, nothing else."
+    )
+
+    try:
+        client_manager.setup_clients()
+        groq_client = client_manager.get_groq_client()
+
+        response_stream = groq_client.chat.completions.create(
+            model=settings.MODEL_NAME_CONVERSATIONAL_GROQ,
+            messages=[{"role": "system", "content": system_prompt}],
+            stream=True,
+            max_tokens=120,
+            temperature=0.3,
+        )
+
+        final_question = ""
+        for chunk in response_stream:
+            if hasattr(chunk.choices[0].delta, "content"):
+                token = chunk.choices[0].delta.content
+                if token:
+                    final_question += token
+
+        return final_question.strip()
+
+    except Exception as e:
+        logger.error(f"Error generating next question: {e}")
+        return new_question
+
+def generate_user_request(db: Session, conversation_id: int) -> str:
+    """
+    Generate a user request from partial or complete conversation data.
+    We include both user's answers and assistant's questions for full context.
     """
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found.")
 
-    flow = CONVERSATION_FLOWS.get(conversation.flow_type, [])
-    if conversation.state_index < len(flow):
-        # Not done with the flow, so no final summary yet
-        return "Flow is not yet complete. Please finish answering all questions."
+    # Fetch entire conversation so LLM sees Q&A
+    all_msgs = db.query(Message).filter(
+        Message.conversation_id == conversation.id
+    ).order_by(Message.id.asc()).all()
 
-    # The final assistant message should be the last message from the assistant
-    last_message = (
-        db.query(Message)
-        .filter(Message.conversation_id == conversation_id, Message.role == "assistant")
-        .order_by(Message.id.desc())
-        .first()
+    if not all_msgs:
+        return "No messages to generate a request."
+
+    conv_context = "\n".join(f"{m.role.capitalize()}: {m.content}" for m in all_msgs)
+
+    system_prompt = (
+        f"{user_request_generation_prompt}\n\n"
+        "Below is the conversation so far, including both questions and user responses:\n"
+        f"{conv_context}\n\n"
+        "Please generate a concise, polite user request to the relevant authority using first-person language. "
+        "If some details are missing, politely mention them. End with a polite question like 'What do I need to do next?'."
     )
-    if last_message:
-        return last_message.content
-    else:
-        return "No summary available."
+
+    try:
+        client_manager.setup_clients()
+        groq_client = client_manager.get_groq_client()
+
+        response_stream = groq_client.chat.completions.create(
+            model=settings.MODEL_NAME_CONVERSATIONAL_GROQ,
+            messages=[{"role": "system", "content": system_prompt}],
+            stream=True,
+            max_tokens=400,
+            temperature=0.4,
+        )
+
+        request_text = ""
+        for chunk in response_stream:
+            if hasattr(chunk.choices[0].delta, "content"):
+                token = chunk.choices[0].delta.content
+                if token:
+                    request_text += token
+
+        return request_text.strip()
+
+    except Exception as e:
+        logger.error(f"Error generating user request: {e}")
+        fallback = "\n".join([f"- {m.role.capitalize()}: {m.content}" for m in all_msgs])
+        return (
+            "LLM request generation failed. Fallback request based on partial conversation:\n"
+            + fallback
+        )

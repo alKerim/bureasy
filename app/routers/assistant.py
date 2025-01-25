@@ -1,12 +1,13 @@
+# app/routers/assistant.py
+
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.services.assistant_service import (
-    start_new_conversation,
-    process_user_message,
-    get_conversation_summary
+    process_incoming_message,
+    generate_user_request
 )
 from app.models.database import SessionLocal
 
@@ -26,46 +27,32 @@ def get_db():
         db.close()
 
 # Request & Response Models
-class StartConversationRequest(BaseModel):
-    flow_type: str  # e.g., "visa_extension"
-
-class StartConversationResponse(BaseModel):
-    conversation_id: int
-    first_question: str
-
-class NextMessageRequest(BaseModel):
-    conversation_id: int
+class ChatRequest(BaseModel):
     user_input: str
+    conversation_id: int | None = None  # If null => detect or start new flow
 
-class NextMessageResponse(BaseModel):
-    conversation_id: int
+class ChatResponse(BaseModel):
+    conversation_id: int | None
     response: str
-    finished: bool  # Indicates if the flow is finished or not
+    finished: bool
 
-@router.post("/start-conversation", response_model=StartConversationResponse)
-def start_conversation(request_data: StartConversationRequest, db: Session = Depends(get_db)):
+@router.post("/message", response_model=ChatResponse)
+def handle_message(request_data: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Single endpoint to handle user messages.
+    1) If conversation_id not provided/invalid => LLM tries to detect flow.
+    2) If recognized => next question or final summary.
+    3) If unsupported => politely say so.
+    """
     try:
-        conversation_id, first_question = start_new_conversation(db, request_data.flow_type)
+        conversation_id, response_text, finished = process_incoming_message(
+            db=db,
+            user_input=request_data.user_input,
+            conversation_id=request_data.conversation_id
+        )
         return {
             "conversation_id": conversation_id,
-            "first_question": first_question
-        }
-    except HTTPException as http_exc:
-        logger.error(f"Error starting conversation: {http_exc.detail}")
-        raise
-    except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error.")
-
-@router.post("/next-message", response_model=NextMessageResponse)
-def handle_next_message(request_data: NextMessageRequest, db: Session = Depends(get_db)):
-    try:
-        conversation_id = request_data.conversation_id
-        user_input = request_data.user_input
-        response, finished = process_user_message(db, conversation_id, user_input)
-        return {
-            "conversation_id": conversation_id,
-            "response": response,
+            "response": response_text,
             "finished": finished
         }
     except HTTPException as http_exc:
@@ -75,16 +62,20 @@ def handle_next_message(request_data: NextMessageRequest, db: Session = Depends(
         logger.exception(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error.")
 
-@router.get("/{conversation_id}/summary")
-def get_summary(conversation_id: int, db: Session = Depends(get_db)):
+@router.get("/{conversation_id}/generate-request")
+def skip_and_generate_request(conversation_id: int, db: Session = Depends(get_db)):
     """
-    Retrieve a final summary of all user data in the conversation.
+    Endpoint to skip the remaining questions and generate a partial user request from
+    any data collected so far.
     """
     try:
-        summary_text = get_conversation_summary(db, conversation_id)
-        return {"conversation_id": conversation_id, "summary": summary_text}
+        user_request = generate_user_request(db, conversation_id)
+        return {
+            "conversation_id": conversation_id,
+            "user_request": user_request
+        }
     except HTTPException as http_exc:
-        logger.error(f"Error getting summary: {http_exc.detail}")
+        logger.error(f"Error generating user request: {http_exc.detail}")
         raise
     except Exception as e:
         logger.exception(f"Unexpected error: {e}")
