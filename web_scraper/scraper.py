@@ -1,9 +1,12 @@
 # scraper.py
+
 import re
 import json
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import phonenumbers
+from phonenumbers import NumberParseException, PhoneNumberMatcher
 
 # Function to fetch a web page
 def fetch_page(url):
@@ -26,47 +29,74 @@ def extract_text_content(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     return soup.get_text(separator=' ', strip=True)
 
-# Function to extract phone numbers
-def extract_phone_numbers(text):
+# Function to check if a string matches a common date format
+def is_date_format(text):
     """
-    Extracts phone numbers from the given text using an improved regex pattern.
+    Checks if the given text matches a common date format.
+
+    Parameters:
+        text (str): The text to check.
+
+    Returns:
+        bool: True if text matches a date pattern, False otherwise.
+    """
+    date_regex = re.compile(
+        r'''(?x)
+        \b(0?[1-9]|[12][0-9]|3[01])        # Day: 1-31
+        [\s./-]                             # Separator
+        (0?[1-9]|1[012])                    # Month: 1-12
+        [\s./-]                             # Separator
+        (\d{4}|\d{2})\b                      # Year: 2 or 4 digits
+        '''
+    )
+    return bool(date_regex.search(text))
+
+# Function to extract phone numbers with context using PhoneNumberMatcher
+def extract_phone_numbers_with_context(text, default_region='DE', context_length=200):
+    """
+    Extracts phone numbers from the given text along with their surrounding context.
 
     Parameters:
         text (str): The text content from which to extract phone numbers.
+        default_region (str): The default region code (e.g., 'DE' for Germany).
+        context_length (int): Number of characters to extract on each side of the phone number.
 
     Returns:
-        list: A list of extracted phone numbers in standardized format.
+        list: A list of dictionaries containing the phone number and its context.
     """
-    # Enhanced regex for phone numbers
-    phone_regex = re.compile(
-        r'''(?x)                  # Verbose mode
-        (?:(?:\+|00)\d{1,3}[\s.-]?)?  # Optional country code
-        (?:\(?\d{1,4}\)?[\s.-]?)?    # Optional area code with or without parentheses
-        \d{2,4}                       # First part of the number
-        [\s.-]?                       # Separator
-        \d{2,4}                       # Second part of the number
-        [\s.-]?                       # Separator
-        \d{2,4}                       # Third part of the number
-        '''
-    )
+    phone_entries = []
 
-    # Find all matches in the text
-    raw_phone_numbers = phone_regex.findall(text)
+    # Use PhoneNumberMatcher to find phone numbers in the text
+    matcher = PhoneNumberMatcher(text, default_region)
 
-    # Process and clean the extracted phone numbers
-    phone_numbers = []
-    for match in phone_regex.finditer(text):
-        phone = match.group()
-        # Remove any surrounding whitespace
-        phone = phone.strip()
-        # Optional: Further clean the phone number (e.g., remove multiple separators)
-        phone = re.sub(r'[\s.-]+', ' ', phone)
-        # Validate the length (e.g., total digits between 7 and 15)
-        digits = re.sub(r'\D', '', phone)  # Remove non-digit characters
-        if 7 <= len(digits) <= 15:
-            phone_numbers.append(phone)
+    for match in matcher:
+        try:
+            parsed_number = match.number
+            # Validate the phone number
+            if phonenumbers.is_possible_number(parsed_number) and phonenumbers.is_valid_number(parsed_number):
+                # Format the number in E.164 format
+                formatted_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
 
-    return phone_numbers
+                # Extract context
+                start_idx = max(match.start - context_length, 0)
+                end_idx = min(match.end + context_length, len(text))
+                left_context = text[start_idx:match.start].strip()
+                right_context = text[match.end:end_idx].strip()
+
+                # Original matched text (for date exclusion)
+                original_phone = match.raw_string
+
+                # Exclude if the number matches a date pattern
+                if not is_date_format(original_phone):
+                    phone_entries.append({
+                        "number": formatted_number,
+                        "left_context": left_context,
+                        "right_context": right_context
+                    })
+        except NumberParseException:
+            continue  # Skip numbers that can't be parsed
+
+    return phone_entries
 
 # Function to extract all links
 def extract_all_links(base_url, html_content):
@@ -96,8 +126,8 @@ def scrape_and_process_data(url, save_path):
     # Extract text
     page_text = extract_text_content(html_content)
 
-    # Extract phone numbers
-    phone_numbers = extract_phone_numbers(page_text)
+    # Extract phone numbers with context
+    phone_numbers = extract_phone_numbers_with_context(page_text)
 
     # Extract links
     all_listed_links = extract_all_links(url, html_content)
@@ -107,7 +137,7 @@ def scrape_and_process_data(url, save_path):
         "url": url,
         "text": page_text,
         "pdf_links": pdf_links,
-        "phone_numbers": phone_numbers,
+        "phone_numbers": phone_numbers,  # Now a list of dicts with number and context
         "all_links": all_listed_links
     }
 
