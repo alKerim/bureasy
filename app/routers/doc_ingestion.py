@@ -5,7 +5,8 @@ from typing import List
 
 from app.services.doc_ingestion_service import (
     ingest_json_data_from_files,
-    generate_checklist
+    generate_checklist,
+    ask_human_phone
 )
 
 logger = logging.getLogger(__name__)
@@ -46,3 +47,27 @@ def generate_checklist_route(request: ChecklistRequest):
     except Exception as e:
         logger.exception(f"Error generating checklist: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+class AskHumanRequest(BaseModel):
+    query: str
+
+@router.post("/ask-human")
+def ask_human_route(request: AskHumanRequest):
+    """
+    Returns a plain phone number as a string or 'NoPhoneAvailable'
+    if no number is available.
+    """
+    try:
+        # Get the result from the `ask_human_phone` function
+        result = ask_human_phone(request.query)
+
+        # Ensure the response is cleaned and formatted properly
+        if result == "NoPhoneAvailable":
+            return "NoPhoneAvailable"
+
+        return result
+    except HTTPException as exc:
+        raise exc
+    except Exception as e:
+        logger.exception(f"Error getting phone number: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

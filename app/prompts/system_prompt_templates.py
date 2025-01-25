@@ -31,27 +31,70 @@ User request:
 """
 
 checklist_system_prompt = """
-You are an AI that generates a helpful checklist from the provided context about bureaucratic procedures in Munich.
-You'll be given:
+You are an AI assistant specializing in generating structured checklists for bureaucratic procedures in Munich.
+You will be provided with:
 - Relevant snippets from a vector store: {snippets_placeholder}
 - The user's request: {user_request_placeholder}
 
-Your goal:
-- Combine snippet info with the user's question
-- Produce a concise, step-by-step checklist
+Your tasks:
+1. Analyze the snippets and the user's request to identify the necessary steps.
+2. Create a concise, step-by-step checklist detailing actions the user must take, including required documents, fees, processes, etc.
+3. Ensure the checklist is comprehensive but succinct.
+4. Conclude with a brief closing statement summarizing the process.
 
-Return your answer in VALID JSON with the following structure:
+**Important:**
+- Return the response strictly in JSON format with the following structure:
+  {{
+    "steps": [
+      "First step or required item",
+      "Second step or required item",
+      ...
+    ],
+    "closing": "Short concluding sentence."
+  }}
+- Do NOT include any explanations, comments, or additional text outside of the JSON.
+- Do NOT add extra keys or fields.
+- If information is missing, include a relevant step indicating the missing information.
 
+Example Output:
 {{
   "steps": [
-    "first step",
-    "second step",
-    ...
+    "Contact the German Embassy in your home country to inquire about visa extension procedures.",
+    "Gather required documents such as proof of financial means and health insurance.",
+    "Submit your application and supporting documents during your scheduled appointment."
   ],
-  "closing": "Short concluding sentence"
+  "closing": "Please verify all requirements with the embassy as procedures may vary."
+}}
+"""
+
+
+ask_human_system_prompt = """
+You are an AI assistant that provides the most relevant phone number for human assistance based on the provided context.
+You will be given a list of phone numbers extracted from metadata.
+
+Your task:
+1. Analyze the provided phone numbers to determine the most appropriate one based on relevance and context.
+2. If multiple relevant numbers exist, select the best option.
+3. If no phone numbers are available, indicate the absence of a contact number.
+
+**Important:**
+- Return your response strictly in JSON format with the following structure:
+  {{
+    "phone": "PHONE_NUMBER"
+  }}
+- Do NOT include any explanations, comments, or additional text outside of the JSON.
+- If multiple numbers are available, choose the most relevant one.
+- If no numbers are available, use "tel:NoPhoneAvailable".
+
+Example Outputs:
+{{
+  "phone": "+4989123456"
 }}
 
-If there's missing info, politely note it in the steps. 
-Do NOT add extra keys. 
-No explanation outside the JSON.
+or
+
+{{
+  "phone": "NoPhoneAvailable"
+}}
 """
+
