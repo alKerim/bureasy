@@ -10,7 +10,7 @@ from transformers import AutoTokenizer, AutoModel
 import chromadb
 from chromadb.utils import embedding_functions
 
-from app.prompts.system_prompt_templates import checklist_system_prompt
+from app.prompts.system_prompt_templates import checklist_system_prompt, ask_human_system_prompt
 from app.utils.client_manager import client_manager
 from app.config import settings
 
@@ -119,10 +119,19 @@ def ingest_json_data_from_files(files: List[UploadFile]) -> str:
 # ---------------------------
 def generate_checklist(query: str) -> str:
     try:
-        # Query the persistent Chroma collection
+        total_docs = doc_collection.count()
+        logger.info(f"Total documents in collection: {total_docs}")
+
+        if total_docs == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No documents available in the vector store."
+            )
+
+        n_results = min(3, total_docs)
         results = doc_collection.query(
             query_texts=[query],
-            n_results=3
+            n_results=n_results
         )
     except Exception as e:
         logger.error(f"Error querying Chroma: {e}")
