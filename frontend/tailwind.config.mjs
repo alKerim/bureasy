@@ -21,6 +21,21 @@ export default {
           DEFAULT: '#f59e0b', // Tailwind amber-500
           dark: '#d97706', // Tailwind amber-600
         },
+        purple: {
+          light: '#a78bfa', // Tailwind purple-400
+          DEFAULT: '#8b5cf6', // Tailwind purple-500
+          dark: '#7c3aed', // Tailwind purple-600
+        },
+        blue: {
+          light: '#bfdbfe', // Tailwind blue-300
+          DEFAULT: '#3b82f6', // Tailwind blue-500
+          dark: '#2563eb', // Tailwind blue-600
+        },
+        yellow: {
+          light: '#fef08a', // Tailwind yellow-300
+          DEFAULT: '#facc15', // Tailwind yellow-400
+          dark: '#eab308', // Tailwind yellow-500
+        },
         gray: {
           50: '#f9fafb',
           100: '#f3f4f6',

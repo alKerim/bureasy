@@ -1,6 +1,7 @@
 // pages/ingest.js
-
 import { useState, useRef } from "react";
+import DarkModeToggle from "../components/DarkModeToggle";
+import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
 
 export default function IngestPage() {
   const [jsonFiles, setJsonFiles] = useState([]);
@@ -94,64 +95,85 @@ export default function IngestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 flex flex-col items-center">
-      <h1 className="text-4xl font-extrabold text-gray-800 mb-8">JSON Data Ingest</h1>
-
-      <div className="w-full max-w-2xl bg-white p-8 rounded-2xl shadow-lg">
-        <h2 className="text-2xl font-semibold text-gray-700 mb-6">Ingest JSON Data</h2>
-        <div
-          className={`flex flex-col items-center justify-center border-2 ${
-            isDragging ? "border-indigo-500 bg-indigo-50" : "border-dashed border-indigo-500"
-          } rounded-lg p-6 cursor-pointer hover:bg-indigo-50 transition`}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-          onClick={() => fileInputRef.current.click()}
-        >
-          <svg
-            className="w-12 h-12 text-indigo-500"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-            />
-          </svg>
-          <span className="mt-2 text-base leading-normal text-gray-600">
-            {isDragging
-              ? "Release to upload"
-              : "Drag & Drop JSON Files or Click to Select"}
-          </span>
-          <input
-            type="file"
-            accept=".json"
-            multiple
-            onChange={onFileChange}
-            className="hidden"
-            ref={fileInputRef}
-          />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+      {/* Header */}
+      <div className="bg-primary dark:bg-primary-dark text-white py-4 px-6 flex items-center justify-between">
+        <div className="flex items-center">
+          <ArrowUpTrayIcon className="h-6 w-6 mr-2" />
+          <h1 className="text-2xl font-semibold">JSON Data Ingest</h1>
         </div>
-        {jsonFiles.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-lg font-medium text-gray-700">Selected Files:</h3>
-            <ul className="list-disc list-inside text-gray-600">
-              {jsonFiles.map((file, index) => (
-                <li key={index}>{file.name}</li>
-              ))}
-            </ul>
+        <DarkModeToggle />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100 text-center">
+            Upload and Ingest JSON Data
+          </h2>
+
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-center text-red-600 dark:text-red-400 mb-4">
+              <ExclamationCircleIcon className="h-5 w-5 mr-2" />
+              {error}
+            </div>
+          )}
+
+          {/* Drag and Drop Area */}
+          <div
+            className={`flex flex-col items-center justify-center border-2 ${
+              isDragging ? "border-indigo-500 bg-indigo-50" : "border-dashed border-indigo-500"
+            } rounded-lg p-6 cursor-pointer hover:bg-indigo-50 transition`}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current.click()}
+          >
+            <ArrowUpTrayIcon className="h-12 w-12 text-indigo-500" />
+            <span className="mt-2 text-base leading-normal text-gray-600 dark:text-gray-300">
+              {isDragging
+                ? "Release to upload"
+                : "Drag & Drop JSON Files or Click to Select"}
+            </span>
+            <input
+              type="file"
+              accept=".json"
+              multiple
+              onChange={onFileChange}
+              className="hidden"
+              ref={fileInputRef}
+            />
           </div>
-        )}
-        {uploadStatus && (
-          <p className="mt-4 text-green-600">{uploadStatus}</p>
-        )}
-        {error && (
-          <p className="mt-4 text-red-600">{error}</p>
-        )}
+
+          {/* Selected Files List */}
+          {jsonFiles.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Selected Files:</h3>
+              <ul className="list-disc list-inside text-gray-600 dark:text-gray-400">
+                {jsonFiles.map((file, index) => (
+                  <li key={index}>{file.name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Upload Status */}
+          {uploadStatus && (
+            <p className="mt-4 text-green-600 dark:text-green-400 flex items-center">
+              <CheckCircleIcon className="h-5 w-5 mr-2" /> {uploadStatus}
+            </p>
+          )}
+
+          {/* Submit Button */}
+          <button
+            onClick={() => handleUploadJSON(jsonFiles)}
+            disabled={loading || jsonFiles.length === 0}
+            className="w-full mt-4 bg-primary hover:bg-primary-dark text-white py-2 rounded-md disabled:opacity-50 flex items-center justify-center transition-transform transform hover:scale-105"
+          >
+            {loading ? "Uploading..." : "Ingest JSON Files"}
+          </button>
+        </div>
       </div>
     </div>
   );
