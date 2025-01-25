@@ -1,0 +1,11 @@
+{
+    "url": "https://lhm-r-author.muenchen.swm.de/en/info/onlineservices.html",
+    "text": "LHM-AS Login LHM-AS notifications 2 Notifications Cookies im Browser deaktiviert Ihr Browser akzeptiert keine Cookies. Das Single Sign-On wird NICHT FUNKTIONIEREN. OK LHM Anmeldeservice Bitte geben Sie Ihren Benutzernamen und Ihr Passwort ein. B enutzername: Benutzername ist ein Pflichtfeld. P asswort: Toggle Password Passwort ist ein Pflichtfeld. Die Feststelltaste (CAPSLOCK) ist aktiviert! ANMELDEN Passwort vergessen? Aus Sicherheitsgründen sollten Sie bei Verlassen der passwortgeschützten Bereiche sich explizit ausloggen und Ihren Webbrowser schließen! Copyright © 2005–2024 Apereo, Inc., kaptara GmbH & Co.KG",
+    "pdf_links": [],
+    "phone_numbers": [],
+    "all_links": [
+        "https://lhm-r-author.muenchen.swm.de/cas/",
+        "https://lhm-r-author.muenchen.swm.de/kdc/private/resetPassword"
+    ],
+    "summary": "LHM-AS Login\n- LHM-AS notifications\n- 2 Notifications\n- Cookies in Browser deactivated\n- Single Sign-On does not function\n- LHM Anmeldeservice\n- User name and password input\n- Benutzername (user name) is a required field\n- P asswort (password) is a required field\n- Toggle Password\n- Password is case sensitive due to CAPSLOCK being activated\n- ANMELDEN (Login)\n- Passwort vergessen (Forgot Password)\n- Aus Sicherheitsgründen (For security reasons)\n- Please log out and close your web browser when leaving password-protected areas\n- Copyright information\n- Apereo, Inc. copyright 2005-2024\n- kaptara GmbH & Co.KG copyright 2005-2024"
+}
