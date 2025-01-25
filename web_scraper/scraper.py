@@ -33,6 +33,19 @@ def extract_phone_numbers(text):
 
     return phone_numbers
 
+# Function to extract all links
+def extract_all_links(base_url, html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    all_links = []
+    for a_tag in soup.find_all('a', href=True):
+        href = a_tag['href']
+        # Convert relative links to absolute links
+        absolute_link = urljoin(base_url, href)
+        all_links.append(absolute_link)
+    return all_links
+
+
+
 # Function to save phone numbers to a JSON file
 def save_phone_numbers_to_json(phone_numbers, save_path):
     phone_data = {}
@@ -41,6 +54,12 @@ def save_phone_numbers_to_json(phone_numbers, save_path):
 
     with open(save_path, 'w', encoding='utf-8') as json_file:
         json.dump(phone_data, json_file, ensure_ascii=False, indent=4)
+
+# Function to save links to a text file
+def save_links_to_file(links, save_path):
+    with open(save_path, 'w', encoding='utf-8') as links_file:
+        for link in links:
+            links_file.write(link + '\n')
 
 # Function to download PDFs
 def download_pdfs(pdf_links, save_dir):
@@ -60,7 +79,7 @@ def download_pdfs(pdf_links, save_dir):
         print(f"Downloaded: {pdf_name}")
 
 # Main function to scrape, process, and store data
-def scrape_and_process_data(url, pdf_save_dir, phone_json_path):
+def scrape_and_process_data(url, save_dir):
     print(f"Scraping {url}...")
     html_content = fetch_page(url)
 
@@ -68,13 +87,13 @@ def scrape_and_process_data(url, pdf_save_dir, phone_json_path):
     pdf_links = extract_pdf_links(url, html_content)
     if pdf_links:
         print(f"Found {len(pdf_links)} PDFs. Downloading...")
-        download_pdfs(pdf_links, pdf_save_dir)
+        download_pdfs(pdf_links, save_dir)
     else:
         print("No PDFs found on the page.")
 
     # Extract text
     page_text = extract_text_content(html_content)
-    text_file = os.path.join(pdf_save_dir, "associated_text.txt")
+    text_file = os.path.join(save_dir, "associated_text.txt")
     with open(text_file, 'w', encoding='utf-8') as text_out:
         text_out.write(page_text)
     print("Text content saved.")
@@ -83,16 +102,24 @@ def scrape_and_process_data(url, pdf_save_dir, phone_json_path):
     phone_numbers = extract_phone_numbers(page_text)
     if phone_numbers:
         print(f"Found {len(phone_numbers)} phone numbers. Saving to JSON...")
-        save_phone_numbers_to_json(phone_numbers, phone_json_path)
+        save_phone_numbers_to_json(phone_numbers, save_dir + "/phone_numbers.json")
     else:
         print("No phone numbers found.")
+
+    # Extract links
+    all_listed_links = extract_all_links(page_text, html_content)
+    if all_listed_links:
+        print(f"Found {len(all_listed_links)} outgoing links. Saving to JSON...")
+        save_links_to_file(all_listed_links, save_dir + "/all_links.txt")
+    else:
+        print("No links found.")
+
 
 
 
 # Example Usage
 website_url = "https://stadt.muenchen.de/en/info/entry-visa.html"  # Replace with the target URL
-output_directory = "web_scraper/scraped_pdfs"
-phone_numbers_json = "web_scraper/phone_numbers.json"
+output_directory = "web_scraper/scraped_data"
 
 
-scrape_and_process_data(website_url, output_directory, phone_numbers_json)
+scrape_and_process_data(website_url, output_directory)
