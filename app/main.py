@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import assistant
 from app.routers import document
+from app.routers import doc_ingestion
 
 from app.models.database import init_db
 
@@ -31,6 +32,7 @@ app.add_middleware(
 # Include routers
 app.include_router(assistant.router)
 app.include_router(document.router)
+app.include_router(doc_ingestion.router)
 
 @app.get("/")
 def read_root():
