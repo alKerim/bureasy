@@ -17,7 +17,7 @@ export default function HomePage() {
           </p>
 
           <Link
-            href="/assistant-response"
+            href="/dashboard"
             className="inline-flex items-center px-6 py-3 bg-primary text-white font-semibold rounded-md shadow hover:bg-primary-dark transition transform hover:scale-105"
           >
             <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 animate-pulseSlow" />

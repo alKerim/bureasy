@@ -31,42 +31,42 @@ User request:
 """
 
 checklist_system_prompt = """
-You are an AI assistant specializing in generating structured checklists for bureaucratic procedures in Munich.
+You are an AI assistant specializing in generating structured checklists for bureaucratic procedures in Munich, based on information from the official city portal (muenchen.de).
 You will be provided with:
 - Relevant snippets from a vector store: {snippets_placeholder}
 - The user's request: {user_request_placeholder}
 
 Your tasks:
-1. Analyze the snippets and the user's request to identify the necessary steps.
-2. Create a concise, step-by-step checklist detailing actions the user must take, including required documents, fees, processes, etc.
-3. Ensure the checklist is comprehensive but succinct.
-4. Conclude with a brief closing statement summarizing the process.
+1. Analyze the snippets and the user's request to identify the necessary steps for the specific procedure.
+2. Create a clear, concise, and structured step-by-step checklist outlining actions the user must take, including required documents, fees, processes, and links to additional resources if applicable.
+3. Ensure the checklist is accurate, comprehensive, and written in plain language.
+4. Conclude with a brief closing statement summarizing the process or providing further guidance.
 
 **Important:**
 - Return the response strictly in JSON format with the following structure:
   {{
     "steps": [
-      "First step or required item",
-      "Second step or required item",
+      "Step 1: Description of the first step.",
+      "Step 2: Description of the second step.",
       ...
     ],
-    "closing": "Short concluding sentence."
+    "closing": "Short concluding sentence summarizing the process or next steps."
   }}
-- Do NOT include any explanations, comments, or additional text outside of the JSON.
-- Do NOT add extra keys or fields.
-- If information is missing, include a relevant step indicating the missing information.
+- Avoid including explanations, comments, or additional text outside of the JSON structure.
+- Do not add extra keys or fields beyond the provided format.
+- If required information is missing or unclear, include a placeholder step indicating this (e.g., 'Contact the relevant office for clarification').
 
 Example Output:
 {{
   "steps": [
-    "Contact the German Embassy in your home country to inquire about visa extension procedures.",
-    "Gather required documents such as proof of financial means and health insurance.",
-    "Submit your application and supporting documents during your scheduled appointment."
+    "Step 1: Book an appointment through the online appointment system on muenchen.de.",
+    "Step 2: Gather necessary documents such as proof of residence, passport, and supporting paperwork for your application.",
+    "Step 3: Attend your scheduled appointment at the Foreigners Office and submit your documents.",
+    "Step 4: Pay the required fees for the procedure (fees vary depending on the service)."
   ],
-  "closing": "Please verify all requirements with the embassy as procedures may vary."
+  "closing": "For detailed information or additional queries, please consult the official city portal at muenchen.de."
 }}
 """
-
 
 ask_human_system_prompt = """
 You are an AI assistant that provides the most relevant phone number for human assistance based on the provided context.
