@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import List
 from fastapi import HTTPException, UploadFile
 import json
 import os
@@ -173,3 +173,69 @@ def generate_checklist(query: str) -> str:
     except Exception as e:
         logger.error(f"Error generating checklist: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate checklist.")
+
+def ask_human_phone(query: str) -> str:
+    try:
+        # Check if documents exist in the collection
+        total_docs = doc_collection.count()
+        if total_docs == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No documents in the vector store to find a phone number."
+            )
+
+        # Query the vector store
+        n_results = min(3, total_docs)
+        results = doc_collection.query(
+            query_texts=[query],
+            n_results=n_results
+        )
+    except Exception as e:
+        logger.error(f"Error querying Chroma for ask-human: {e}")
+        raise HTTPException(status_code=500, detail="Failed to query vector store.")
+
+    phone_candidates = []
+    for meta_batch in results.get("metadatas", []):
+        for meta in meta_batch:
+            phone_data_str = meta.get("phone_numbers", "[]")  # Get the JSON string
+            try:
+                # Decode the JSON string into a Python list of dictionaries
+                phone_data = json.loads(phone_data_str)
+                for phone in phone_data:
+                    phone_candidates.append(phone["number"])
+            except (json.JSONDecodeError, TypeError, KeyError) as e:
+                logger.error(f"Error decoding phone data: {e}")
+
+    if not phone_candidates:
+        phone_candidates.append("NoPhoneAvailable")
+
+    phones_text = "\n".join(phone_candidates)
+
+    # Build the prompt
+    prompt = ask_human_system_prompt.format(phones=phones_text)
+
+    try:
+        client_manager.setup_clients()
+        groq_client = client_manager.get_groq_client()
+
+        # Call the conversational model
+        response_stream = groq_client.chat.completions.create(
+            model=settings.MODEL_NAME_CONVERSATIONAL_GROQ,
+            messages=[{"role": "system", "content": f"{prompt}\n\nPhones:\n{phones_text}"}],
+            stream=True,
+            max_tokens=100,
+            temperature=0.2,
+        )
+
+        raw_output = ""
+        for chunk in response_stream:
+            if hasattr(chunk.choices[0].delta, "content"):
+                token = chunk.choices[0].delta.content
+                if token:
+                    raw_output += token
+
+        return raw_output.strip()
+
+    except Exception as e:
+        logger.error(f"Error generating phone number for ask-human: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate phone contact.")
