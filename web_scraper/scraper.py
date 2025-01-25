@@ -8,6 +8,9 @@ from urllib.parse import urljoin
 import phonenumbers
 from phonenumbers import NumberParseException, PhoneNumberMatcher
 
+from llm_helper import summarize_website
+
+
 # Function to fetch a web page
 def fetch_page(url):
     response = requests.get(url)
@@ -132,13 +135,16 @@ def scrape_and_process_data(url, save_path):
     # Extract links
     all_listed_links = extract_all_links(url, html_content)
 
+    summarized_website = summarize_website(page_text)
+
     # Create JSON object
     data = {
         "url": url,
         "text": page_text,
         "pdf_links": pdf_links,
         "phone_numbers": phone_numbers,  # Now a list of dicts with number and context
-        "all_links": all_listed_links
+        "all_links": all_listed_links,
+        "summary": summarized_website
     }
 
     # Save JSON to file
@@ -146,3 +152,16 @@ def scrape_and_process_data(url, save_path):
         json.dump(data, json_file, ensure_ascii=False, indent=4)
 
     print(f"Data saved to {save_path}")
+
+
+
+
+# Example Usage
+# URL to scrape
+url_to_scrape = "https://stadt.muenchen.de/en/info/entry-visa.html"
+
+# Directory to save scraped data
+save_directory = "web_scraper/scraped_data"
+
+# Scrape and process data
+scrape_and_process_data(url_to_scrape, save_directory)
