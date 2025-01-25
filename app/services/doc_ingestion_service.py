@@ -1,8 +1,13 @@
+import os
+
+# Set the TOKENIZERS_PARALLELISM environment variable before any other imports
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import logging
-from typing import List
+from typing import List, Dict
 from fastapi import HTTPException, UploadFile
 import json
-import os
+import re
 
 import torch
 from transformers import AutoTokenizer, AutoModel
@@ -10,23 +15,35 @@ from transformers import AutoTokenizer, AutoModel
 import chromadb
 from chromadb.utils import embedding_functions
 
-from app.prompts.system_prompt_templates import checklist_system_prompt, ask_human_system_prompt
+from app.prompts.system_prompt_templates import (
+    checklist_system_prompt,
+    ask_human_system_prompt
+)
 from app.utils.client_manager import client_manager
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------
-# 1) Setup the E5 model for embeddings
+# 1) Setup the E5 model for embeddings (Lazy Initialization)
 # ---------------------------
 MODEL_NAME = "intfloat/e5-base"  # e.g. "intfloat/e5-large", "GTE-base", etc.
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModel.from_pretrained(MODEL_NAME)
-model.eval()
+tokenizer = None
+model = None
+
+def initialize_model():
+    global tokenizer, model
+    if tokenizer is None or model is None:
+        logger.info("Initializing tokenizer and model...")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModel.from_pretrained(MODEL_NAME)
+        model.eval()
+        logger.info("Tokenizer and model initialized.")
 
 # Helper to get embeddings from the E5 model
 def embed_text(text: str) -> List[float]:
+    initialize_model()
     text = "passage: " + text
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
     with torch.no_grad():
@@ -52,18 +69,46 @@ chroma_client = chromadb.PersistentClient(path=persist_directory)
 embedding_fn = E5EmbeddingFunction()
 collection_name = "munich_docs"
 
-# Get or create the collection with persistence
-try:
+# Check if the collection already exists and load it
+existing_collections = chroma_client.list_collections()
+
+if collection_name in existing_collections:
+    logger.info(f"Collection '{collection_name}' already exists. Loading it...")
+    doc_collection = chroma_client.get_collection(
+        name=collection_name,
+        embedding_function=embedding_fn  # Ensure the embedding function is used
+    )
+else:
+    logger.info(f"Collection '{collection_name}' does not exist. Creating a new one...")
     doc_collection = chroma_client.create_collection(
         name=collection_name,
         embedding_function=embedding_fn
     )
-except Exception:
-    doc_collection = chroma_client.get_collection(collection_name)
 
 # ---------------------------
-# 3) Ingestion function
+# 3) Ingestion function with phone context extraction
 # ---------------------------
+PHONE_REGEX = r'\+?\d[\d\-()\s]{5,}\d'
+
+def extract_phone_numbers_with_context(text: str) -> List[Dict[str, str]]:
+    """Extract phone numbers and their context (left/right) from text."""
+    sentences = text.split('.')  # Split text into sentences
+    results = []
+
+    for i, sentence in enumerate(sentences):
+        matches = re.findall(PHONE_REGEX, sentence)
+        for match in matches:
+            left_context = sentences[i-1].strip() if i > 0 else ""
+            right_context = sentences[i+1].strip() if i < len(sentences) - 1 else ""
+
+            results.append({
+                "number": match,
+                "left_context": left_context,
+                "right_context": right_context
+            })
+
+    return results
+
 def ingest_json_data_from_files(files: List[UploadFile]) -> str:
     try:
         ids = []
@@ -82,21 +127,35 @@ def ingest_json_data_from_files(files: List[UploadFile]) -> str:
                 raise ValueError("Invalid JSON format. Expected a list or a dictionary.")
 
             for item in data:
-                doc_id = item.get("id", "auto-id")
+                doc_id = item.get("id", f"auto-id-{len(ids)+1}")
                 text = item.get("content") or item.get("text") or ""
+                url = item.get("url", "")
+                summary = item.get("summary", "")  # Extract the summary field
+
+                # Extract phone numbers with context
+                phone_metadata = extract_phone_numbers_with_context(text)
+                phone_metadata_str = json.dumps(phone_metadata)
+                
+                # Convert all_links to a JSON string or a comma-separated string
+                all_links = item.get("all_links", [])
+                all_links_str = json.dumps(all_links) if isinstance(all_links, list) else ""
+                
                 meta = {
                     "title": item.get("title"),
-                    "url": item.get("url"),
-                    "phone": item.get("phone"),
-                    "pdf_links": ", ".join(item.get("pdf_links", [])) if item.get("pdf_links") else None,
-                    "all_links": ", ".join(item.get("all_links", [])) if item.get("all_links") else None,
+                    "url": url,
+                    "phone_numbers": phone_metadata_str,
+                    "all_links": all_links_str,
+                    "summary": summary,  # Add summary to metadata
                 }
                 # Remove keys with None values
-                meta = {k: v for k, v in meta.items() if v is not None}
+                meta = {k: v for k, v in meta.items() if v}
 
                 ids.append(doc_id)
                 docs.append(text)
                 metas.append(meta)
+
+        if not ids:
+            raise ValueError("No valid documents found in the uploaded files.")
 
         # Add data to the persistent collection
         doc_collection.add(
@@ -105,6 +164,7 @@ def ingest_json_data_from_files(files: List[UploadFile]) -> str:
             ids=ids
         )
 
+        logger.info(f"Ingested {len(ids)} documents into the collection.")
         return "Data ingestion complete."
 
     except json.JSONDecodeError as e:

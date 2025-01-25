@@ -83,8 +83,10 @@ Your task:
     "phone": "PHONE_NUMBER"
   }}
 - Do NOT include any explanations, comments, or additional text outside of the JSON.
+- Do NOT add extra keys or fields.
+- No markdowns or special formatting like ```
 - If multiple numbers are available, choose the most relevant one.
-- If no numbers are available, use "tel:NoPhoneAvailable".
+- If no numbers are available, use "NoPhoneAvailable".
 
 Example Outputs:
 {{
