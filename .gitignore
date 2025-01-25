@@ -166,3 +166,6 @@ cython_debug/
 test.db
 
 /node_modules
+
+# .bin files
+*.bin
