@@ -27,10 +27,10 @@ def generate_checklist_route(request: ChecklistRequest):
     try:
         # Generate the checklist
         checklist_json = generate_checklist(request.query)
-
+        print(checklist_json)
         # Send the checklist to the AI model for further formatting
         ai_response = send_checklist_to_ai_model(request.query, checklist_json)
-
+        print(ai_response)
         return ChecklistResponse(checklist=checklist_json, ai_response=ai_response)
 
     except HTTPException as exc:
