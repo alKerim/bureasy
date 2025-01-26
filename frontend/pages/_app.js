@@ -1,5 +1,19 @@
-import "@/styles/globals.css";
+// pages/_app.js
 
-export default function App({ Component, pageProps }) {
-  return <Component {...pageProps} />;
+import '../styles/globals.css';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+});
+
+function MyApp({ Component, pageProps }) {
+  return (
+    <div className={inter.className}>
+      <Component {...pageProps} />
+    </div>
+  );
 }
+
+export default MyApp;

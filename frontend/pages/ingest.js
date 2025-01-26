@@ -74,7 +74,7 @@ export default function IngestPage() {
         formData.append("files", file);
       });
 
-      const response = await fetch("http://localhost:8000/assistant/ingest-data", {
+      const response = await fetch("http://localhost:8000/documents/ingest-data", {
         method: "POST",
         body: formData, // FormData automatically sets the correct Content-Type
       });

@@ -5,8 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import assistant
-from app.routers import document
+from app.routers import doc_labelling
 from app.routers import doc_ingestion
+from app.routers import ask_human
+from app.routers import generate_checklist
 
 from app.models.database import init_db
 
@@ -31,8 +33,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(assistant.router)
-app.include_router(document.router)
+app.include_router(doc_labelling.router)
 app.include_router(doc_ingestion.router)
+app.include_router(ask_human.router)
+app.include_router(generate_checklist.router)
 
 @app.get("/")
 def read_root():
