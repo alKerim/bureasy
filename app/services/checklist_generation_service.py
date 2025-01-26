@@ -1,5 +1,7 @@
 import os
 
+from fastapi import HTTPException
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import logging
@@ -17,6 +19,9 @@ def generate_checklist(query: str) -> dict:
     Query ChromaDB and generate a checklist based on user input.
     """
     try:
+        if not query.strip():
+            raise ValueError("The query is empty. Please provide a valid input.")
+
         # Get the shared ChromaDB collection
         collection = get_chroma_collection()
 
@@ -28,6 +33,10 @@ def generate_checklist(query: str) -> dict:
             query_embeddings=[query_embedding],
             n_results=10  # Retrieve more results for a broader checklist
         )
+
+        # Ensure results contain metadata
+        if not results.get("metadatas"):
+            raise ValueError("No results found for the given query. Please refine your input.")
 
         # Flatten the metadata list
         all_metadatas = list(chain.from_iterable(results.get("metadatas", [])))
@@ -54,27 +63,29 @@ def generate_checklist(query: str) -> dict:
 
         # Validate checklist steps
         if not checklist["steps"]:
-            raise ValueError("No valid steps found for the query.")
+            raise HTTPException(status_code=400, detail="No valid steps found for the query.")
 
         return checklist
 
+    except HTTPException as he:
+        logger.error(f"HTTPException in generating checklist: {he.detail}")
+        raise he
+    except ValueError as ve:
+        logger.error(f"Value error in generating checklist: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.exception(f"Error generating checklist: {e}")
-        raise Exception("Internal server error while generating the checklist.")
+        logger.exception(f"Unexpected error generating checklist: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error while generating the checklist.")
 
 def send_checklist_to_ai_model(query: str, checklist: dict) -> str:
     """
     Format the checklist and send it to the AI model for further processing.
-    
-    Args:
-        query (str): The user's query.
-        checklist (dict): The checklist generated based on the query.
-    
-    Returns:
-        str: The formatted response from the AI model.
     """
     try:
-        # Ensure formatted_steps is correctly built
+        if not checklist or not checklist.get("steps"):
+            raise ValueError("The checklist is empty or malformed. Ensure valid steps are provided.")
+
+        # Build formatted steps
         formatted_steps = ""
         for idx, step in enumerate(checklist.get("steps", []), start=1):
             step_details = "\n".join(f"- {detail}" for detail in step.get("details", []))
@@ -85,26 +96,31 @@ def send_checklist_to_ai_model(query: str, checklist: dict) -> str:
             source = step.get("source", "Unknown Source")
 
             formatted_steps += (
-                f"Step {idx}:\n{step['step']}\n{step_details}\n{formatted_pdf_links}Source: {source}\n\n"
+                f"Step {idx}:\n"
+                f"{step.get('step', 'No step description provided')}\n"
+                f"{step_details}\n"
+                f"{formatted_pdf_links}"
+                f"Source: {source}\n\n"
             )
 
-        # Validate formatted_steps
         if not formatted_steps.strip():
-            logger.error("Formatted steps are empty. Ensure checklist steps are provided.")
-            raise ValueError("Formatted steps are empty.")
+            raise ValueError("Formatted steps are empty. Ensure valid checklist data is provided.")
 
         # Format the system prompt
         system_prompt = checklist_generation_template.format(
             query=query,
-            formatted_steps=formatted_steps  # Pass formatted_steps here
+            formatted_steps=formatted_steps
         ).strip()
 
     except KeyError as e:
-        logger.error(f"Error formatting checklist prompt: Missing key: {e}")
-        raise Exception("Failed to format the system prompt.")
+        logger.error(f"Missing key in checklist data: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid checklist format: {e}")
+    except ValueError as ve:
+        logger.error(f"Value error while formatting steps: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.error(f"Error formatting checklist prompt: {e}")
-        raise Exception("Failed to format the system prompt.")
+        logger.error(f"Unexpected error formatting checklist prompt: {e}")
+        raise HTTPException(status_code=500, detail="Failed to format the system prompt.")
 
     try:
         # Set up the client
@@ -121,15 +137,15 @@ def send_checklist_to_ai_model(query: str, checklist: dict) -> str:
         )
 
         # Collect the streamed response
-        raw_output = ""
+        raw_output = []
         for chunk in response_stream:
             if hasattr(chunk.choices[0].delta, "content"):
                 token = chunk.choices[0].delta.content
                 if token:
-                    raw_output += token
+                    raw_output.append(token)
 
-        return raw_output.strip()
+        return "".join(raw_output).strip()
 
     except Exception as e:
         logger.error(f"Error querying AI model: {e}")
-        raise Exception("Failed to retrieve response from the AI model.")
+        raise HTTPException(status_code=500, detail="Failed to retrieve response from the AI model.")
