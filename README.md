@@ -6,7 +6,7 @@
 ### **Overview**  
 This project was developed during the **lablab.ai AI for Connectivity Hackathon**. **Chat-With.Gov** is a universal tool that transforms complex public service websites into an intuitive, multilingual chat experience. From renewing visas to navigating local government services, our platform makes bureaucracy accessible for all.
 
----
+------
 
 ### **Key Features**  
 
